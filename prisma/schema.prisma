@@ -1,0 +1,286 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  BUYER
+  SELLER
+}
+
+//
+// USER
+// 
+
+model UserProfile {
+  id        Int      @id @default(autoincrement())
+  firstName String   @db.VarChar(50)
+  lastName  String   @db.VarChar(50)
+  avatar    String   @db.VarChar(50)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User?
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  role         Role
+  phoneNumber  String   @db.VarChar(11)
+  emailAddress String   @db.VarChar(30)
+  password     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profileId       Int               @unique
+  profile         UserProfile       @relation(fields: [profileId], references: [id])
+  shop            Shop?
+  cart            Cart?
+  order           Order[]
+  shippingAddress ShippingAddress[]
+  comment         Comment[]
+
+  @@unique([phoneNumber, emailAddress])
+}
+
+//
+// SHOP
+//
+
+model Shop {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(20)
+  avatar      String   @db.VarChar(50)
+  description String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+
+  spu Spu?
+}
+
+//
+// PRODUCT
+// 
+
+model Spu {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(30)
+  description String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  shopId Int  @unique
+  shop   Shop @relation(fields: [shopId], references: [id])
+
+  spuImage SpuImage?
+  sku      Sku?
+  comment  Comment[]
+}
+
+model SpuImage {
+  id        Int      @id @default(autoincrement())
+  imageUrl  String   @db.VarChar(50)
+  default   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  spuId Int @unique
+  spu   Spu @relation(fields: [spuId], references: [id])
+}
+
+model Sku {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(30)
+  price     Float    @db.DoublePrecision
+  stock     Int      @db.Integer
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  spuId Int @unique
+  spu   Spu @relation(fields: [spuId], references: [id])
+
+  skuProperty SkuProperty?
+  skuImage    SkuImage?
+  cart        Cart?
+  transaction Transaction?
+  orderItem   OrderItem?
+}
+
+model SkuProperty {
+  id           Int      @id @default(autoincrement())
+  propertyName String   @db.VarChar(30)
+  value        String   @db.VarChar(30)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  skuId Int @unique
+  sku   Sku @relation(fields: [skuId], references: [id])
+}
+
+model SkuImage {
+  id        Int      @id @default(autoincrement())
+  imageUrl  String   @db.VarChar(50)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skuId Int @unique
+  sku   Sku @relation(fields: [skuId], references: [id])
+}
+
+//
+// INVENTORY
+// 
+
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  countOfUnit Int      @db.Integer
+  priceOfUnit Decimal  @db.Decimal(12, 2)
+  totalPrice  Float    @db.DoublePrecision
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  skuId Int @unique
+  sku   Sku @relation(fields: [skuId], references: [id])
+}
+
+//
+// CART
+//
+
+model Cart {
+  id        Int      @id @default(autoincrement())
+  quantity  Int      @db.Integer
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+  skuId  Int  @unique
+  sku    Sku  @relation(fields: [skuId], references: [id])
+}
+
+//
+// SHIPPING
+//
+
+model ShippingOption {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(50)
+  fee       Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ShippingAddress {
+  id        Int      @id @default(autoincrement())
+  firstName String   @db.VarChar(50)
+  lastName  String   @db.VarChar(50)
+  street    String   @db.VarChar(50)
+  city      String   @db.VarChar(50)
+  province  String   @db.VarChar(50)
+  region    String   @db.VarChar(50)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId Int     @unique
+  user   User    @relation(fields: [userId], references: [id])
+  orders Order[]
+}
+
+//
+// ORDER
+//
+
+enum OrderPaymentOptions {
+  PAYFIRST
+  DELIVERFIRST
+}
+
+enum OrderCurrentStatus {
+  UNPAID
+  PAID
+  SHIPPING
+  COMPLETE
+  CANCELLED
+}
+
+model Order {
+  id                 Int                 @id @default(autoincrement())
+  orderOption        OrderPaymentOptions @default(PAYFIRST)
+  status             OrderCurrentStatus  @default(UNPAID)
+  totalProductAmount Decimal             @db.Decimal(12, 2)
+  discountAmount     Decimal             @default(0.0) @db.Decimal(12, 2)
+  shippingAmount     Decimal             @db.Decimal(12, 2)
+  totalAmount        Decimal             @db.Decimal(12, 2)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  userId            Int             @unique
+  user              User            @relation(fields: [userId], references: [id])
+  // paymentId Int @unique
+  // payment Payment @relation(fields: [paymentId], references: [id])
+  shippingAddressId Int             @unique
+  shipping          ShippingAddress @relation(fields: [shippingAddressId], references: [id])
+  orderItem         OrderItem[]
+}
+
+// TODO: OrderStates
+model OrderStates {
+  id         Int      @id @default(autoincrement())
+  status     String   @db.VarChar(50)
+  nextStatus String   @db.VarChar(50)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// TODO: OrderTrail
+model OrderTrail {
+  id Int @id @default(autoincrement())
+}
+
+model OrderItem {
+  id          Int      @id @default(autoincrement())
+  quantity    Int      @db.Integer
+  totalAmount Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderId Int   @unique
+  order   Order @relation(fields: [orderId], references: [id])
+  skuId   Int   @unique
+  sku     Sku   @relation(fields: [skuId], references: [id])
+}
+
+//
+// SPU REVIEWS
+//
+
+model Comment {
+  id      Int    @id @default(autoincrement())
+  comment String @db.Text
+  rating  Int    @db.SmallInt
+
+  spuId  Int  @unique
+  spu    Spu  @relation(fields: [spuId], references: [id])
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+
+  commentMedia CommentMedia?
+}
+
+model CommentMedia {
+  id       Int    @id @default(autoincrement())
+  mediaUrl String @db.VarChar(100)
+
+  commentId Int     @unique
+  comment   Comment @relation(fields: [commentId], references: [id])
+}
